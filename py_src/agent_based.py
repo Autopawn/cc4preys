@@ -39,6 +39,7 @@ class AgentModel:
     @jit
     def step(self):
         # Dont step when there are 0 lynxs
+        self.n_interactions = 0
         if self.n_lynxs==0:
             return False
         # Hops
@@ -64,31 +65,34 @@ class AgentModel:
                         self.lynxs[nx,ny] += 1
         # Lynx eat
         rang = self.params["hops_lynx_eat"]
-        rang2 = (rang+1)*(rang+1)
+        rang2 = (2*rang+1)*(2*rang+1)
         self.hunts = np.zeros((self.size,self.size),dtype="int")
         for x in range(self.size):
             for y in range(self.size):
                 for k in range(self.hares[x,y]):
                     # In order to give a random preferency to surrounding lynxs:
                     p = self.rgen.randint(0,rang2)
+                    eaten = False
                     for i in range(rang2):
                         pp = p+i-rang2 if p+i>=rang2 else p+i
-                        xx = (x+(pp%(rang+1))-rang)%self.size
-                        yy = (y+(pp//(rang+1))-rang)%self.size
-                        eaten = False
-                        for l in range(self.lynxs[xx,yy]):
-                            if self.rgen.rand()<self.params["prob_lynx_eat"]:
-                                eaten=True
-                                self.hares[x,y] -= 1
-                                self.lynxs[xx,yy] -= 1
-                                self.hunts[xx,yy] += 1
-                                break
-                        if eaten: break
+                        xx = (x+(pp%(2*rang+1))-rang)%self.size
+                        yy = (y+(pp//(2*rang+1))-rang)%self.size
+                        self.n_interactions += self.lynxs[xx,yy]
+                        if not eaten:
+                            iters = self.lynxs[xx,yy]
+                            for l in range(iters):
+                                if self.rgen.rand()<self.params["prob_lynx_eat"]:
+                                    self.hares[x,y] -= 1
+                                    self.lynxs[xx,yy] -= 1
+                                    self.hunts[xx,yy] += 1
+                                    eaten=True
+                                    break
         # Hare reproduce
         new_hares = np.zeros((self.size,self.size),dtype="int")
         for x in range(self.size):
             for y in range(self.size):
-                for k in range(self.hares[x,y]):
+                iters = self.hares[x,y]
+                for k in range(iters):
                     if self.rgen.rand()<self.params["prob_hare_repr"]:
                         sx = self.rgen.randint(-self.params["hops_hare"],self.params["hops_hare"]+1)
                         nx = (x+sx)%self.size
@@ -99,7 +103,8 @@ class AgentModel:
         # Lynx reproduce
         for x in range(self.size):
             for y in range(self.size):
-                for k in range(self.hunts[x,y]):
+                iters = self.hunts[x,y]
+                for k in range(iters):
                     if self.rgen.rand()<self.params["prob_lynx_repr"]:
                         sx = self.rgen.randint(-self.params["hops_lynx"],self.params["hops_lynx"]+1)
                         nx = (x+sx)%self.size
@@ -111,7 +116,8 @@ class AgentModel:
         # Lynx die
         for x in range(self.size):
             for y in range(self.size):
-                for k in range(self.lynxs[x,y]):
+                iters = self.lynxs[x,y]
+                for k in range(iters):
                     if self.rgen.rand()<self.params["prob_lynx_dead"]:
                         self.lynxs[x,y] -= 1
         # Update sums
